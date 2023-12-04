@@ -169,7 +169,6 @@
     <ClInclude Include="..\include\r3d_shape.h" />
     <ClInclude Include="..\include\r3d_stack_allocator.h" />
     <ClInclude Include="..\include\sampler.h" />
-    <ClInclude Include="sampler.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
