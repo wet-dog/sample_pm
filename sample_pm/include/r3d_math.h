@@ -1,6 +1,6 @@
 ﻿//-------------------------------------------------------------------------------------------------
 // File : r3d_math.h
-// Desc : Math 
+// Desc : Math
 // Copyright(c) Project Asura. All right reserved.
 //-------------------------------------------------------------------------------------------------
 #pragma once
@@ -10,6 +10,7 @@
 //-------------------------------------------------------------------------------------------------
 // Includes
 //-------------------------------------------------------------------------------------------------
+#include <array>
 #include <cstdint>
 #include <cmath>
 
@@ -53,10 +54,10 @@ struct Vector2
             double x;
             double y;
         };
-        double a[2];
+        std::array<double, 2> a;
     };
 
-    Vector2()
+    Vector2() : x(0.0), y(0.0)
     { /* DO_NOTHING */ }
 
     Vector2(double nx, double ny)
@@ -95,6 +96,13 @@ struct Vector2
 
     inline Vector2& operator /= (double value)
     { x /= value; y /= value; return *this; }
+
+    double operator[](int i) const
+    {
+        if (i == 0) return x;
+        else if (i == 1) return y;
+        else return 0.0;
+    }
 };
 
 
@@ -114,7 +122,7 @@ struct Vector3
         double a[3];
     };
 
-    Vector3()
+    Vector3() : x(0.0), y(0.0), z(0.0)
     { /* DO_NOTHING */ }
 
     Vector3(double nx, double ny, double nz)
@@ -153,6 +161,9 @@ struct Vector3
 
     inline Vector3& operator /= (double value)
     { x /= value; y /= value; z /= value; return *this; }
+
+    inline bool operator!=(const Vector3& value) const
+    { return x != value.x || y != value.y || z != value.z; }
 };
 
 
@@ -226,7 +237,7 @@ class Random
 {
 public:
     Random(uint32_t seed)
-    { set_seed( 123456789 ); }
+    { set_seed( seed ); }
 
     inline void set_seed(uint32_t seed)
     {

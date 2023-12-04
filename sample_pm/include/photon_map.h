@@ -20,8 +20,8 @@ struct photon
 
 struct photon_query
 {
-    double      max_dist2;
-    size_t      count;
+    double      max_dist2 = 0.0;
+    size_t      count = 0;
     Vector3     pos;
     Vector3     normal;
 };
@@ -75,7 +75,7 @@ public:
         m_photons.pop_back();
     }
 
-    const photon_query_result& operator[](int index)
+    const photon_query_result& operator[](size_t index)
     { return m_photons[index]; }
 
 private:
@@ -129,7 +129,7 @@ private:
 
         bool operator() (const photon& lhs, const photon& rhs)
         { return lhs.pos.a[axis_] < rhs.pos.a[axis_]; }
- 
+
         int axis_;
     };
 
@@ -181,7 +181,7 @@ private:
 
         std::nth_element(photons, photons + mid, photons + count, less_comp(axis));
 
-        node* node  = new(std::nothrow) photon_map::node();
+        node* node  = new/*(std::nothrow)*/ photon_map::node();
         node->axis  = axis;
         node->point = &photons[mid];
         node->left  = recursive_build(photons, mid, depth + 1);
