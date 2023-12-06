@@ -173,27 +173,24 @@ bool intersect_scene_no_light(const Ray& ray, double t_max, int* id)
 //-------------------------------------------------------------------------------------------------
 void generate_photon(Ray* ray, Vector3* flux, int count, Random* random)
 {
-    const auto r1 = D_2PI * random->get_as_double();
-    const auto r2 = 1.0 - 2.0 * random->get_as_double();
     const auto& light = g_spheres[g_lightId];
     const auto pos = light.pos + (light.radius + D_HIT_MIN) *
-                    Vector3(sqrt(1.0 - r2 * r2) * cos(r1), sqrt(1.0 - r2 * r2) * sin(r1), r2);
+                     UniformSampleSphere(g_sampler.getNext2D());
+    const auto light_pos_pdf = UniformSpherePdf() * (1.0 / (light.radius*light.radius));
 
     const auto nrm = normalize(pos - light.pos);
-    Vector3 w = nrm;
     Vector3 u, v;
-    orthonormal_basis(w, u, v);
+    orthonormal_basis(nrm, u, v);
 
-    const auto u1 = D_2PI * random->get_as_double();
-    const auto u2 = random->get_as_double();
-    const auto u2s = sqrt(u2);
-
-    const auto dir = normalize((u * cos(u1) * u2s + v * sin(u1) * u2s + w * sqrt(1.0 - u2)));
+    float light_dir_pdf = 0.0f;
+    const auto sample = CosineSampleHemisphere(g_sampler.getNext2D(), light_dir_pdf);
+    const auto dir = normalize(u * sample.x + v * sample.y + nrm * sample.z);
 
     ray->pos = pos;
     ray->dir = dir;
 
-    *flux = light.emission * 4.0 * D_PI * pow(light.radius, 2.0) * D_PI / count;
+    *flux = light.emission / light_dir_pdf / light_pos_pdf / count *
+            std::abs(dot(dir, nrm));
 }
 
 //-------------------------------------------------------------------------------------------------
