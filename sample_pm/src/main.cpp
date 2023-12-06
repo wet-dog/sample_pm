@@ -39,16 +39,16 @@ namespace
 
     // Frisvad orthonormal basis function
     inline void orthonormal_basis(const Vector3& n, Vector3& u, Vector3& v) {
-		if (n.z < -0.9999999f) // Handle the singularity
-		{
-			u = Vector3(0.0f, -1.0f, 0.0f);
-			v = Vector3(-1.0f, 0.0f, 0.0f);
-			return;
-		}
-		const float a = 1.0f / (1.0f + n.z);
-		const float b = -n.x * n.y * a;
-		u = Vector3(1.0f - n.x * n.x * a, b, -n.x);
-		v = Vector3(b, 1.0f - n.y * n.y * a, -n.y);
+        if (n.z < -0.9999999f) // Handle the singularity
+        {
+            u = Vector3(0.0f, -1.0f, 0.0f);
+            v = Vector3(-1.0f, 0.0f, 0.0f);
+            return;
+        }
+        const float a = 1.0f / (1.0f + n.z);
+        const float b = -n.x * n.y * a;
+        u = Vector3(1.0f - n.x * n.x * a, b, -n.x);
+        v = Vector3(b, 1.0f - n.y * n.y * a, -n.y);
     }
 
     // transform direction from world to local
