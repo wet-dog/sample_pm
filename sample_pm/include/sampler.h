@@ -98,15 +98,25 @@ public:
     Vector2 getNext2D() override { return Vector2(rng.getNext(), rng.getNext()); }
 };
 
-// sample direction in the hemisphere
-// its pdf is propotional to cosine
-inline Vector3 sampleCosineHemisphere(const Vector2& uv, float& pdf) {
-    const float theta =
-        0.5 * std::acos(std::clamp(1.0 - 2.0 * uv[0], -1.0, 1.0));
-    const float phi = PI_MUL_2 * uv[1];
+// Shortest - might not work
+//inline Vector3 CosineSampleHemisphere(const Vector2& uv, float& pdf)
+//{
+//    float z = std::sqrt(uv[0]);
+//    float rad = std::sqrt(1.0f - uv[0]);
+//    float phi = 2.0f * PI * uv[1];
+//    pdf = z * PI_INV;
+//    return { rad * std::cos(phi), rad * std::sin(phi), z };
+//}
+
+// Correct
+inline Vector3 CosineSampleHemisphere(const Vector2& uv, float& pdf)
+{
+    const float theta = std::acos(std::sqrt(uv[0]));
     const float cosTheta = std::cos(theta);
+    const float sinTheta = std::sin(theta);
+    const float phi = 2.0f * PI * uv[1];
     pdf = PI_INV * cosTheta;
-    return sphericalToCartesian(theta, phi);
+    return { std::cos(phi) * sinTheta, std::sin(phi) * sinTheta, cosTheta };
 }
 
 Vector3 UniformSampleSphere(const Vector2& uv) {

@@ -37,14 +37,18 @@ namespace
         }
     }
 
-    inline void orthonormal_basis(const Vector3& n, Vector3& t, Vector3& b) {
-        if (std::abs(n.x) > 0.9) {
-            t = normalize(cross(n, Vector3(0, 1, 0)));
-        }
-        else {
-            t = normalize(cross(n, Vector3(1, 0, 0)));
-        }
-        b = normalize(cross(n, t));
+    // Frisvad orthonormal basis function
+    inline void orthonormal_basis(const Vector3& n, Vector3& u, Vector3& v) {
+		if (n.z < -0.9999999f) // Handle the singularity
+		{
+			u = Vector3(0.0f, -1.0f, 0.0f);
+			v = Vector3(-1.0f, 0.0f, 0.0f);
+			return;
+		}
+		const float a = 1.0f / (1.0f + n.z);
+		const float b = -n.x * n.y * a;
+		u = Vector3(1.0f - n.x * n.x * a, b, -n.x);
+		v = Vector3(b, 1.0f - n.y * n.y * a, -n.y);
     }
 
     // transform direction from world to local
@@ -320,8 +324,7 @@ void photon_trace(const Ray& emit_ray, const Vector3& emit_flux, photon_map* pho
     }
 }
 
-static float cosTheta(const Vector3& v) { return v.y; }
-static float absCosTheta(const Vector3& v) { return std::abs(cosTheta(v)); }
+static float cosTheta(const Vector3& v) { return v.z; }
 
 // Lambertian diffuse
 Vector3 Evaluate(const Vector3& wo, const Vector3& wi)
@@ -344,9 +347,9 @@ Vector3 EvaluateBxDF(const Vector3& wo, const Vector3& wi,
 {
     // world to local transform
     const Vector3 wo_l =
-        worldToLocal(wo, dpdu, normal, dpdv);
+        worldToLocal(wo, dpdu, dpdv, normal);
     const Vector3 wi_l =
-        worldToLocal(wi, dpdu, normal, dpdv);
+        worldToLocal(wi, dpdu, dpdv, normal);
 
     return Evaluate(wo_l, wi_l);
 };
@@ -354,7 +357,7 @@ Vector3 EvaluateBxDF(const Vector3& wo, const Vector3& wi,
 // Lambertian diffuse
 Vector3 SampleDirection(const Vector3& wo, Vector3& wi, const Vector3& normal, Sampler& sampler, float& pdf)
 {
-    wi = sampleCosineHemisphere(sampler.getNext2D(), pdf);
+    wi = CosineSampleHemisphere(sampler.getNext2D(), pdf);
     return Evaluate(wo, wi);
 }
 
@@ -363,7 +366,7 @@ Vector3 Sample(const Vector3& wo, const Vector3& normal, Sampler& sampler,
 {
     // world to local transform
     const Vector3 wo_l =
-        worldToLocal(wo, dpdu, normal, dpdv);
+        worldToLocal(wo, dpdu, dpdv, normal);
 
     // sample direction in tangent space
     Vector3 wi_l;
@@ -371,7 +374,7 @@ Vector3 Sample(const Vector3& wo, const Vector3& normal, Sampler& sampler,
     Vector3 f = SampleDirection(wo_l, wi_l, normal, sampler, pdf);
 
     // local to world transform
-    wi = localToWorld(wi_l, dpdu, normal, dpdv);
+    wi = localToWorld(wi_l, dpdu, dpdv, normal);
 
     return f;
 }
