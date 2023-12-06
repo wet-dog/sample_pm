@@ -38,13 +38,13 @@ namespace
     }
 
     inline void orthonormal_basis(const Vector3& n, Vector3& t, Vector3& b) {
-        if (std::abs(n.y) < 0.9f) {
+        if (std::abs(n.x) > 0.9) {
             t = normalize(cross(n, Vector3(0, 1, 0)));
         }
         else {
-            t = normalize(cross(n, Vector3(0, 0, -1)));
+            t = normalize(cross(n, Vector3(1, 0, 0)));
         }
-        b = normalize(cross(t, n));
+        b = normalize(cross(n, t));
     }
 
     // transform direction from world to local
@@ -56,7 +56,10 @@ namespace
     // transform direction from local to world
     inline Vector3 localToWorld(const Vector3& v, const Vector3& lx, const Vector3& ly,
         const Vector3& lz) {
-        return Vector3(dot(v, lx), dot(v, ly), dot(v, lz));
+        return Vector3(
+            lx.x * v.x + ly.x * v.y + lz.x * v.z,
+            lx.y * v.x + ly.y * v.y + lz.y * v.z,
+            lx.z * v.x + ly.z * v.y + lz.z * v.z);
     }
 }
 
@@ -173,13 +176,9 @@ void generate_photon(Ray* ray, Vector3* flux, int count, Random* random)
                     Vector3(sqrt(1.0 - r2 * r2) * cos(r1), sqrt(1.0 - r2 * r2) * sin(r1), r2);
 
     const auto nrm = normalize(pos - light.pos);
-    Vector3 w, u, v;
-    w = nrm;
-    if (fabs(w.x) > 0.1)
-    { u = normalize(cross(Vector3(0, 1, 0), w)); }
-    else
-    { u = normalize(cross(Vector3(1, 0, 1), w)); }
-    v = cross(w, u);
+    Vector3 w = nrm;
+    Vector3 u, v;
+    orthonormal_basis(w, u, v);
 
     const auto u1 = D_2PI * random->get_as_double();
     const auto u2 = random->get_as_double();
@@ -249,14 +248,9 @@ void photon_trace(const Ray& emit_ray, const Vector3& emit_flux, photon_map* pho
                     // 反射ならレイを飛ばす.
 
                     // 基底ベクトル.
-                    Vector3 u, v, w;
-
-                    w = orienting_normal;
-                    if (abs(w.x) > 0.1)
-                    { u = normalize(cross(Vector3(0, 1, 0), w)); }
-                    else
-                    { u = normalize(cross(Vector3(1, 0, 0), w)); }
-                    v = cross(w, u);
+                    Vector3 w = orienting_normal;
+                    Vector3 u, v;
+                    orthonormal_basis(orienting_normal, u, v);
 
                     const auto r1 = D_2PI * random->get_as_double();
                     const auto r2 = random->get_as_double();
@@ -536,16 +530,9 @@ Vector3 radiance(const Ray& ray, int depth, Random* random, photon_map* photon_m
     if (!intersect_scene(ray, &t, &id))
     { return g_back_ground; }
 
-    // 交差物体.
     const auto& obj = g_spheres[id];
-
-    // 交差位置.
     const auto hit_pos = ray.pos + ray.dir * t;
-
-    // 法線ベクトル.
     const auto normal  = normalize(hit_pos - obj.pos);
-
-    // 物体からのレイの入出を考慮した法線ベクトル.
     const auto orienting_normal = (dot(normal, ray.dir) < 0.0) ? normal : -normal;
 
     Vector3 dpdu;
