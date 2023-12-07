@@ -329,17 +329,12 @@ void photon_trace(const Ray& emit_ray, const Vector3& emit_flux, photon_map* pho
                     orthonormal_basis(orienting_normal, dpdu, dpdv);
 
                     // Sample direction by BxDF
-                    // There would be TransportDirection::FROM_LIGHT here too if a different
-                    // material was being used. E.g., refraction behaves differently.
                     Vector3 dir;
                     float pdf_dir;
-                    Vector3 f = Sample(-ray.dir, orienting_normal, g_sampler, dir, pdf_dir, dpdu, dpdv, &obj);
+                    Vector3 f = Sample(-ray.dir, orienting_normal, g_sampler,
+                                       dir, pdf_dir, dpdu, dpdv, &obj);
 
-                    // update throughput and ray
-                    flux *= f * cosTerm(-ray.dir, dir, orienting_normal,
-                                        orienting_normal,
-                                        TransportDirection::FROM_LIGHT);
-                    flux /= pdf_dir / p;
+                    flux *= f * std::abs(dot(dir, orienting_normal)) / pdf_dir / p;
 
                     ray = Ray(hit_pos, dir);
                 }
