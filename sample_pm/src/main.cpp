@@ -119,6 +119,82 @@ const int      g_final_gathering_depth = 4;
 static constexpr double RAY_EPS = 1.0e-5f;
 const int g_samples = 256;
 
+enum class TransportDirection { FROM_LIGHT, FROM_CAMERA };
+static float cosTerm(const Vector3& wo, const Vector3& wi,
+    const Vector3& shadingNormal, const Vector3& geometricNormal,
+    const TransportDirection& transport_dir) {
+    const float wi_ns = dot(wi, shadingNormal);
+    const float wi_ng = dot(wi, geometricNormal);
+    const float wo_ns = dot(wo, shadingNormal);
+    const float wo_ng = dot(wo, geometricNormal);
+
+    // prevent light leaks
+    if (wi_ng * wi_ns <= 0 || wo_ng * wo_ns <= 0) {
+        throw std::exception();
+    }
+
+    if (transport_dir == TransportDirection::FROM_CAMERA) {
+        return std::abs(wi_ns);
+    } else if (transport_dir == TransportDirection::FROM_LIGHT) {
+        return std::abs(wo_ns) * std::abs(wi_ng) / std::abs(wo_ng);
+    } else {
+        throw std::exception();
+    }
+}
+
+static float cosTheta(const Vector3& v) { return v.z; }
+
+// Lambertian diffuse
+Vector3 Evaluate(const Vector3& wo, const Vector3& wi, const Vector3& colour)
+{
+    // when wo, wi is under the surface, return 0
+    const float cosThetaO = cosTheta(wo);
+    const float cosThetaI = cosTheta(wi);
+    if (cosThetaO < 0 || cosThetaI < 0)
+        return Vector3(0.0, 0.0, 0.0);
+
+    return colour / PI;
+};
+
+// Lambertian diffuse
+Vector3 EvaluateBxDF(const Vector3& wo, const Vector3& wi,
+    const Vector3& normal, const Vector3& dpdu,
+    const Vector3& dpdv, const Sphere* hitPrimitive)
+{
+    // world to local transform
+    const Vector3 wo_l = worldToLocal(wo, dpdu, dpdv, normal);
+    const Vector3 wi_l = worldToLocal(wi, dpdu, dpdv, normal);
+
+    return Evaluate(wo_l, wi_l, hitPrimitive->color);
+};
+
+// Lambertian diffuse
+Vector3 SampleDirection(const Vector3& wo, Vector3& wi, const Vector3& normal,
+    Sampler& sampler, float& pdf,
+    const Sphere* hitPrimitive)
+{
+    wi = CosineSampleHemisphere(sampler.getNext2D(), pdf);
+    return Evaluate(wo, wi, hitPrimitive->color);
+}
+
+Vector3 Sample(const Vector3& wo, const Vector3& normal, Sampler& sampler,
+    Vector3& wi, float& pdf, const Vector3& dpdu,
+    const Vector3& dpdv, const Sphere* hitPrimitive)
+{
+    // world to local transform
+    const Vector3 wo_l = worldToLocal(wo, dpdu, dpdv, normal);
+
+    // sample direction in tangent space
+    Vector3 wi_l;
+
+    Vector3 f = SampleDirection(wo_l, wi_l, normal, sampler, pdf, hitPrimitive);
+
+    // local to world transform
+    wi = localToWorld(wi_l, dpdu, dpdv, normal);
+
+    return f;
+}
+
 //-------------------------------------------------------------------------------------------------
 //      シーンとの交差判定を行います.
 //-------------------------------------------------------------------------------------------------
@@ -249,18 +325,23 @@ void photon_trace(const Ray& emit_ray, const Vector3& emit_flux, photon_map* pho
                     // 反射ならレイを飛ばす.
 
                     // 基底ベクトル.
-                    Vector3 w = orienting_normal;
-                    Vector3 u, v;
-                    orthonormal_basis(orienting_normal, u, v);
+                    Vector3 dpdu, dpdv;
+                    orthonormal_basis(orienting_normal, dpdu, dpdv);
 
-                    const auto r1 = D_2PI * random->get_as_double();
-                    const auto r2 = random->get_as_double();
-                    const auto r2s = sqrt(r2);
+                    // Sample direction by BxDF
+                    // There would be TransportDirection::FROM_LIGHT here too if a different
+                    // material was being used. E.g., refraction behaves differently.
+                    Vector3 dir;
+                    float pdf_dir;
+                    Vector3 f = Sample(-ray.dir, orienting_normal, g_sampler, dir, pdf_dir, dpdu, dpdv, &obj);
 
-                    auto dir = normalize(u * cos(r1) * r2s + v * sin(r1) * r2s + w * sqrt(1.0 - r2));
+                    // update throughput and ray
+                    flux *= f * cosTerm(-ray.dir, dir, orienting_normal,
+                                        orienting_normal,
+                                        TransportDirection::FROM_LIGHT);
+                    flux /= pdf_dir / p;
 
                     ray = Ray(hit_pos, dir);
-                    flux *= obj.color / p;
                 }
                 else
                 {
@@ -321,64 +402,9 @@ void photon_trace(const Ray& emit_ray, const Vector3& emit_flux, photon_map* pho
     }
 }
 
-static float cosTheta(const Vector3& v) { return v.z; }
-
-// Lambertian diffuse
-Vector3 Evaluate(const Vector3& wo, const Vector3& wi)
-{
-    // TODO: Change constant (Kd)
-    const Vector3 rho = Vector3(0.7250, 0.7100, 0.6800);
-
-    // when wo, wi is under the surface, return 0
-    // TODO: understand this
-    const float cosThetaO = cosTheta(wo);
-    const float cosThetaI = cosTheta(wi);
-    if (cosThetaO < 0 || cosThetaI < 0) return Vector3(0.0, 0.0, 0.0);
-
-    return rho / PI;
-};
-
-// Lambertian diffuse
-Vector3 EvaluateBxDF(const Vector3& wo, const Vector3& wi,
-                    const Vector3& normal, const Vector3& dpdu, const Vector3& dpdv)
-{
-    // world to local transform
-    const Vector3 wo_l =
-        worldToLocal(wo, dpdu, dpdv, normal);
-    const Vector3 wi_l =
-        worldToLocal(wi, dpdu, dpdv, normal);
-
-    return Evaluate(wo_l, wi_l);
-};
-
-// Lambertian diffuse
-Vector3 SampleDirection(const Vector3& wo, Vector3& wi, const Vector3& normal, Sampler& sampler, float& pdf)
-{
-    wi = CosineSampleHemisphere(sampler.getNext2D(), pdf);
-    return Evaluate(wo, wi);
-}
-
-Vector3 Sample(const Vector3& wo, const Vector3& normal, Sampler& sampler,
-                Vector3& wi, float& pdf, const Vector3& dpdu, const Vector3& dpdv)
-{
-    // world to local transform
-    const Vector3 wo_l =
-        worldToLocal(wo, dpdu, dpdv, normal);
-
-    // sample direction in tangent space
-    Vector3 wi_l;
-
-    Vector3 f = SampleDirection(wo_l, wi_l, normal, sampler, pdf);
-
-    // local to world transform
-    wi = localToWorld(wi_l, dpdu, dpdv, normal);
-
-    return f;
-}
-
 Vector3 compute_direct_illumination(const Vector3& wo,
     const Vector3& hit_pos, const Vector3& normal, Sampler& sampler,
-    const Light& light, const Vector3& dpdu, const Vector3& dpdv)
+    const Light& light, const Vector3& dpdu, const Vector3& dpdv, const Sphere& obj)
 {
     Vector3 Ld;
 
@@ -407,7 +433,7 @@ Vector3 compute_direct_illumination(const Vector3& wo,
     {
         // light_surf and -wi unused
         const Vector3 Le = light.Le(light_surf, -wi);
-        const Vector3 f = EvaluateBxDF(wo, wi, normal, dpdu, dpdv);
+        const Vector3 f = EvaluateBxDF(wo, wi, normal, dpdu, dpdv, &obj);
         const double cos = std::abs(dot(wi, normal));
         Ld = f * cos * Le / (pdf_choose_light * pdf_dir);
     }
@@ -480,7 +506,7 @@ Vector3 compute_indirect_illumination_recursive(const Vector3& hit_pos, const Ve
     // sample direction by BxDF
     Vector3 dir;
     float pdf_dir;
-    const Vector3 f = Sample(wo, normal, sampler, dir, pdf_dir, dpdu, dpdv);
+    const Vector3 f = Sample(wo, normal, sampler, dir, pdf_dir, dpdu, dpdv, &obj);
     const float cos = std::abs(dot(normal, dir));
 
     // trace final gathering ray
@@ -565,7 +591,7 @@ Vector3 radiance(const Ray& ray, int depth, Random* random, photon_map* photon_m
         {
             // Compute direct illumination by explicit light sampling
             const Vector3 Ld = compute_direct_illumination(-ray.dir, hit_pos, orienting_normal,
-                                                           g_sampler, g_point_light, dpdu, dpdv);
+                                                           g_sampler, g_point_light, dpdu, dpdv, obj);
 
             // compute indirect illumination with final gathering
             const Vector3 Li =

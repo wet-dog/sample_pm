@@ -1,0 +1,13 @@
+BasedOnStyle: LLVM
+UseTab: Never
+IndentWidth: 4
+# TabWidth: 4
+
+Language: Cpp
+# Force pointers to the type for C++.
+DerivePointerAlignment: false
+PointerAlignment: Left
+BreakBeforeBraces: Allman
+AllowShortFunctionsOnASingleLine: None
+AllowShortLambdasOnASingleLine: Inline
+Cpp11BracedListStyle: false
